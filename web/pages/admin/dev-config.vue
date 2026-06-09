@@ -1,0 +1,387 @@
+<template>
+  <AdminPageLayout>
+    <!-- 页面头部 - 标题和保存按钮 -->
+    <template #page-header>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">开发配置</h1>
+        <p class="text-gray-600 dark:text-gray-400">管理API和开发相关配置</p>
+      </div>
+      <n-button type="primary" @click="saveConfig" :loading="saving">
+        <template #icon>
+          <i class="fas fa-save"></i>
+        </template>
+        保存配置
+      </n-button>
+    </template>
+
+    <!-- 内容区 - 配置表单 -->
+    <template #content>
+      <div class="config-content h-full">
+        <!-- API Token -->
+        <div>
+          <n-form-item label="公开API访问令牌" path="api_token">
+            <div class="flex gap-2">
+              <n-input
+                v-model:value="configForm.api_token"
+                type="password"
+                placeholder="输入API Token，用于公开API访问认证"
+                show-password-on="click"
+              />
+              <n-button
+                v-if="!configForm.api_token"
+                type="primary"
+                @click="generateApiToken"
+              >
+                生成
+              </n-button>
+              <template v-else>
+                <n-button
+                  type="primary"
+                  @click="copyApiToken"
+                >
+                  复制
+                </n-button>
+                <n-button
+                  type="warning"
+                  @click="regenerateApiToken"
+                >
+                  重新生成
+                </n-button>
+              </template>
+            </div>
+            <template #help>
+              API Token用于公开API的访问认证，请妥善保管
+            </template>
+          </n-form-item>
+        </div>
+
+        <!-- API文档链接 -->
+        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <h3 class="text-lg font-medium text-blue-900 dark:text-blue-100 mb-2">
+            API文档
+          </h3>
+          <p class="text-sm text-blue-700 dark:text-blue-300 mb-3">
+            查看完整的API文档和使用说明
+          </p>
+          <n-button type="primary" @click="openApiDocs">
+            <template #icon>
+              <i class="fas fa-book"></i>
+            </template>
+            查看API文档
+          </n-button>
+        </div>
+
+        <!-- 插件开发说明 -->
+        <div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+          <h3 class="text-lg font-medium text-green-900 dark:text-green-100 mb-2">
+            插件开发
+          </h3>
+          <p class="text-sm text-green-700 dark:text-green-300 mb-3">
+            学习如何开发自定义插件，扩展系统功能
+          </p>
+          <div class="flex gap-2">
+            <n-button type="success" @click="showPluginDevGuide">
+              <template #icon>
+                <i class="fas fa-code"></i>
+              </template>
+              插件开发说明
+            </n-button>
+            <n-button type="info" @click="goToPluginManager">
+              <template #icon>
+                <i class="fas fa-plug"></i>
+              </template>
+              插件管理
+            </n-button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </AdminPageLayout>
+
+  <!-- 插件开发说明模态框 -->
+  <PluginDevGuide
+    v-model="showDevGuideModal"
+    @go-to-plugin-manager="goToPluginManager"
+  />
+</template>
+
+<script setup lang="ts">
+import { useConfigChangeDetection } from '~/composables/useConfigChangeDetection'
+import AdminPageLayout from '~/components/AdminPageLayout.vue'
+import PluginDevGuide from '~/components/plugins/PluginDevGuide.vue'
+
+// 设置页面布局
+definePageMeta({
+  layout: 'admin',
+  ssr: false
+})
+
+// 定义配置表单类型
+interface DevConfigForm {
+  api_token: string
+}
+
+// 使用配置改动检测
+const {
+  setOriginalConfig,
+  updateCurrentConfig,
+  getChangedConfig,
+  hasChanges,
+  updateOriginalConfig,
+  saveConfig: saveConfigWithDetection
+} = useConfigChangeDetection<DevConfigForm>({
+  debug: true,
+  fieldMapping: {
+    api_token: 'api_token'
+  }
+})
+
+const notification = useNotification()
+const saving = ref(false)
+const showDevGuideModal = ref(false)
+
+// 配置表单数据
+const configForm = ref<DevConfigForm>({
+  api_token: ''
+})
+
+// 获取系统配置
+const fetchConfig = async () => {
+  try {
+    const { useSystemConfigApi } = await import('~/composables/useApi')
+    const systemConfigApi = useSystemConfigApi()
+    const response = await systemConfigApi.getSystemConfig()
+    
+    if (response) {
+      const configData = {
+        api_token: (response as any).api_token || ''
+      }
+      
+      configForm.value = { ...configData }
+      setOriginalConfig(configData)
+    }
+  } catch (error) {
+    console.error('获取系统配置失败:', error)
+    notification.error({
+      content: '获取系统配置失败',
+      duration: 3000
+    })
+  }
+}
+
+// 保存配置
+const saveConfig = async () => {
+  try {
+    saving.value = true
+    
+    // 更新当前配置数据
+    updateCurrentConfig({
+      api_token: configForm.value.api_token
+    })
+    
+    const { useSystemConfigApi } = await import('~/composables/useApi')
+    const systemConfigApi = useSystemConfigApi()
+    
+    // 使用通用保存函数
+    const result = await saveConfigWithDetection(
+      systemConfigApi.updateSystemConfig,
+      {
+        onlyChanged: true,
+        includeAllFields: true
+      },
+      // 成功回调
+      async () => {
+        notification.success({
+          content: '开发配置保存成功',
+          duration: 3000
+        })
+        
+        // 刷新系统配置状态，确保顶部导航同步更新
+        const { useSystemConfigStore } = await import('~/stores/systemConfig')
+        const systemConfigStore = useSystemConfigStore()
+        await systemConfigStore.initConfig(true, true)
+      },
+      // 错误回调
+      (error) => {
+        console.error('保存开发配置失败:', error)
+        notification.error({
+          content: '保存开发配置失败',
+          duration: 3000
+        })
+      }
+    )
+    
+    // 如果没有改动，显示提示
+    if (result && result.message === '没有检测到任何改动') {
+      notification.info({
+        content: '没有检测到任何改动',
+        duration: 3000
+      })
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+// 生成API Token
+const generateApiToken = async () => {
+  try {
+    const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
+    configForm.value.api_token = token
+    
+    notification.success({
+      content: 'API Token生成成功',
+      duration: 3000
+    })
+  } catch (error) {
+    console.error('生成API Token失败:', error)
+    notification.error({
+      content: '生成API Token失败',
+      duration: 3000
+    })
+  }
+}
+
+// 复制API Token
+const copyApiToken = async () => {
+  try {
+    await navigator.clipboard.writeText(configForm.value.api_token)
+    notification.success({
+      content: 'API Token已复制到剪贴板',
+      duration: 3000
+    })
+  } catch (error) {
+    console.error('复制API Token失败:', error)
+    notification.error({
+      content: '复制API Token失败',
+      duration: 3000
+    })
+  }
+}
+
+// 重新生成API Token
+const regenerateApiToken = async () => {
+  try {
+    const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
+    configForm.value.api_token = token
+    
+    notification.success({
+      content: 'API Token重新生成成功',
+      duration: 3000
+    })
+  } catch (error) {
+    console.error('重新生成API Token失败:', error)
+    notification.error({
+      content: '重新生成API Token失败',
+      duration: 3000
+    })
+  }
+}
+
+// 打开API文档
+const openApiDocs = () => {
+  window.open('/api-docs', '_blank')
+}
+
+// 打开API测试工具
+const openApiTest = () => {
+  window.open('/api-test', '_blank')
+}
+
+// 显示插件开发说明
+const showPluginDevGuide = () => {
+  showDevGuideModal.value = true
+}
+
+// 前往插件管理
+const goToPluginManager = () => {
+  navigateTo('/admin/plugins')
+}
+
+// 导出配置
+const exportConfig = async () => {
+  try {
+    const configData = {
+      api_token: configForm.value.api_token,
+      export_time: new Date().toISOString()
+    }
+    
+    const blob = new Blob([JSON.stringify(configData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `dev-config-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    notification.success({
+      content: '配置导出成功',
+      duration: 3000
+    })
+  } catch (error) {
+    console.error('导出配置失败:', error)
+    notification.error({
+      content: '导出配置失败',
+      duration: 3000
+    })
+  }
+}
+
+// 导入配置
+const importConfig = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (file) {
+      try {
+        const text = await file.text()
+        const configData = JSON.parse(text)
+        
+        if (configData.api_token) {
+          configForm.value.api_token = configData.api_token
+          notification.success({
+            content: '配置导入成功',
+            duration: 3000
+          })
+        } else {
+          notification.error({
+            content: '配置文件格式错误',
+            duration: 3000
+          })
+        }
+      } catch (error) {
+        console.error('导入配置失败:', error)
+        notification.error({
+          content: '导入配置失败',
+          duration: 3000
+        })
+      }
+    }
+  }
+  input.click()
+}
+
+// 页面加载时获取配置
+onMounted(() => {
+  fetchConfig()
+})
+
+
+</script>
+
+<style scoped>
+/* 自定义样式 */
+
+.config-content {
+  padding: 1rem;
+  background-color: var(--color-white, #ffffff);
+}
+
+.dark .config-content {
+  background-color: var(--color-dark-bg, #1f2937);
+}
+</style>

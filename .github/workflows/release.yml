@@ -1,0 +1,90 @@
+name: Release
+
+permissions:
+  contents: write
+  packages: read
+  id-token: write
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag version (e.g., v1.3.9)'
+        required: true
+        default: ''
+      version-suffix:
+        description: 'Version suffix for testing (e.g., -test, -rc)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.set_tag.outputs.tag }}
+
+    steps:
+    - name: Set release tag
+      id: set_tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "Error: tag input is required for manual trigger"
+            exit 1
+          fi
+        else
+          TAG="${{ github.ref_name }}"
+        fi
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+
+    - name: Build Linux binary
+      run: |
+        chmod +x scripts/build.sh
+        ./scripts/build.sh build-linux
+
+    - name: Install UPX
+      uses: crazy-max/ghaction-upx@v3
+      with:
+        install-only: true
+
+    - name: Compress binary with UPX
+      run: upx --best main
+
+    - name: Rename binary
+      run: mv main urldb-${{ steps.set_tag.outputs.tag }}-linux-amd64
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Build Frontend
+      run: |
+        cd web
+        npm install --frozen-lockfile
+        npm run build
+
+    - name: Create frontend archive
+      run: |
+        cd web
+        tar -czf ../frontend-${{ steps.set_tag.outputs.tag }}.tar.gz .output/
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.set_tag.outputs.tag }}
+        files: |
+          urldb-${{ steps.set_tag.outputs.tag }}-linux-amd64
+          frontend-${{ steps.set_tag.outputs.tag }}.tar.gz
+        generate_release_notes: true

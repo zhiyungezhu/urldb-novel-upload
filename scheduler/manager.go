@@ -1,0 +1,215 @@
+???????????package scheduler
+
+import (
+	"github.com/zhiyungezhu/urldb-novel-upload/db/repo"
+	"github.com/zhiyungezhu/urldb-novel-upload/utils"
+)
+
+// Manager 调度器管理器
+type Manager struct {
+	baseScheduler          *BaseScheduler
+	hotDramaScheduler      *HotDramaScheduler
+	readyResourceScheduler *ReadyResourceScheduler
+	sitemapScheduler       *SitemapScheduler
+	googleIndexScheduler   *GoogleIndexScheduler
+	uploadWatcher          *UploadWatcher
+	novelUploadWatcher     *NovelUploadWatcher
+}
+
+// NewManager 创建调度器管理器
+func NewManager(
+	hotDramaRepo repo.HotDramaRepository,
+	readyResourceRepo repo.ReadyResourceRepository,
+	resourceRepo repo.ResourceRepository,
+	systemConfigRepo repo.SystemConfigRepository,
+	panRepo repo.PanRepository,
+	cksRepo repo.CksRepository,
+	tagRepo repo.TagRepository,
+	categoryRepo repo.CategoryRepository,
+	taskItemRepo repo.TaskItemRepository,
+	taskRepo repo.TaskRepository,
+) *Manager {
+	// 创建基础调度器
+	baseScheduler := NewBaseScheduler(
+		hotDramaRepo,
+		readyResourceRepo,
+		resourceRepo,
+		systemConfigRepo,
+		panRepo,
+		cksRepo,
+		tagRepo,
+		categoryRepo,
+	)
+
+	// 创建各个具体的调度器
+	hotDramaScheduler := NewHotDramaScheduler(baseScheduler)
+	readyResourceScheduler := NewReadyResourceScheduler(baseScheduler)
+	sitemapScheduler := NewSitemapScheduler(baseScheduler)
+	googleIndexScheduler := NewGoogleIndexScheduler(baseScheduler, taskItemRepo, taskRepo)
+	uploadWatcher := NewUploadWatcher(baseScheduler, taskRepo, taskItemRepo)
+	novelUploadWatcher := NewNovelUploadWatcher(baseScheduler, taskRepo, taskItemRepo)
+
+	return &Manager{
+		baseScheduler:          baseScheduler,
+		hotDramaScheduler:      hotDramaScheduler,
+		readyResourceScheduler: readyResourceScheduler,
+		sitemapScheduler:       sitemapScheduler,
+		googleIndexScheduler:   googleIndexScheduler,
+		uploadWatcher:          uploadWatcher,
+		novelUploadWatcher:     novelUploadWatcher,
+	}
+}
+
+// StartAll 启动所有调度任务
+func (m *Manager) StartAll() {
+	utils.Debug("启动所有调度任务")
+
+	// 启动热播剧定时任务
+	m.StartHotDramaScheduler()
+
+	// 启动待处理资源调度任务
+	m.readyResourceScheduler.Start()
+
+	// 启动Google索引调度任务
+	m.googleIndexScheduler.Start()
+
+	utils.Debug("所有调度任务已启动")
+}
+
+// StopAll 停止所有调度任务
+func (m *Manager) StopAll() {
+	utils.Debug("停止所有调度任务")
+
+	// 停止热播剧定时任务
+	m.StopHotDramaScheduler()
+
+	// 停止待处理资源调度任务
+	m.readyResourceScheduler.Stop()
+
+	// 停止Google索引调度任务
+	m.googleIndexScheduler.Stop()
+
+	utils.Debug("所有调度任务已停止")
+}
+
+// StartHotDramaScheduler 启动热播剧调度任务
+func (m *Manager) StartHotDramaScheduler() {
+	m.hotDramaScheduler.Start()
+}
+
+// StopHotDramaScheduler 停止热播剧调度任务
+func (m *Manager) StopHotDramaScheduler() {
+	m.hotDramaScheduler.Stop()
+}
+
+// IsHotDramaRunning 检查热播剧调度任务是否正在运行
+func (m *Manager) IsHotDramaRunning() bool {
+	return m.hotDramaScheduler.IsRunning()
+}
+
+// StartReadyResourceScheduler 启动待处理资源调度任务
+func (m *Manager) StartReadyResourceScheduler() {
+	m.readyResourceScheduler.Start()
+}
+
+// StopReadyResourceScheduler 停止待处理资源调度任务
+func (m *Manager) StopReadyResourceScheduler() {
+	m.readyResourceScheduler.Stop()
+}
+
+// IsReadyResourceRunning 检查待处理资源调度任务是否正在运行
+func (m *Manager) IsReadyResourceRunning() bool {
+	return m.readyResourceScheduler.IsReadyResourceRunning()
+}
+
+// GetHotDramaNames 获取热播剧名称列表
+func (m *Manager) GetHotDramaNames() ([]string, error) {
+	return m.hotDramaScheduler.GetHotDramaNames()
+}
+
+// StartSitemapScheduler 启动Sitemap调度任务
+func (m *Manager) StartSitemapScheduler() {
+	m.sitemapScheduler.Start()
+}
+
+// StopSitemapScheduler 停止Sitemap调度任务
+func (m *Manager) StopSitemapScheduler() {
+	m.sitemapScheduler.Stop()
+}
+
+// IsSitemapRunning 检查Sitemap调度任务是否在运行
+func (m *Manager) IsSitemapRunning() bool {
+	return m.sitemapScheduler.IsRunning()
+}
+
+// GetSitemapConfig 获取Sitemap配置
+func (m *Manager) GetSitemapConfig() (bool, error) {
+	return m.sitemapScheduler.GetSitemapConfig()
+}
+
+// UpdateSitemapConfig 更新Sitemap配置
+func (m *Manager) UpdateSitemapConfig(enabled bool) error {
+	return m.sitemapScheduler.UpdateSitemapConfig(enabled)
+}
+
+// TriggerSitemapGeneration 手动触发sitemap生成
+func (m *Manager) TriggerSitemapGeneration() {
+	go m.sitemapScheduler.generateSitemap()
+}
+
+// StartGoogleIndexScheduler 启动Google索引调度任务
+func (m *Manager) StartGoogleIndexScheduler() {
+	m.googleIndexScheduler.Start()
+}
+
+// StopGoogleIndexScheduler 停止Google索引调度任务
+func (m *Manager) StopGoogleIndexScheduler() {
+	m.googleIndexScheduler.Stop()
+}
+
+// IsGoogleIndexRunning 检查Google索引调度任务是否在运行
+func (m *Manager) IsGoogleIndexRunning() bool {
+	return m.googleIndexScheduler.IsRunning()
+}
+
+// GetStatus 获取所有调度任务的状态
+func (m *Manager) GetStatus() map[string]bool {
+	return map[string]bool{
+		"hot_drama":      m.IsHotDramaRunning(),
+		"ready_resource": m.IsReadyResourceRunning(),
+		"sitemap":        m.IsSitemapRunning(),
+		"google_index":   m.IsGoogleIndexRunning(),
+		"upload_watcher":       m.IsUploadWatcherRunning(),
+		"novel_upload_watcher": m.IsNovelUploadWatcherRunning(),
+	}
+}
+
+// StartUploadWatcher 启动上传目录监控
+func (m *Manager) StartUploadWatcher() {
+	m.uploadWatcher.Start()
+}
+
+// StopUploadWatcher 停止上传目录监控
+func (m *Manager) StopUploadWatcher() {
+	m.uploadWatcher.Stop()
+}
+
+// IsUploadWatcherRunning 检查上传目录监控是否正在运行
+func (m *Manager) IsUploadWatcherRunning() bool {
+	return m.uploadWatcher.IsRunning()
+}
+
+// StartNovelUploadWatcher 启动小说上传目录监控
+func (m *Manager) StartNovelUploadWatcher() {
+	m.novelUploadWatcher.Start()
+}
+
+// StopNovelUploadWatcher 停止小说上传目录监控
+func (m *Manager) StopNovelUploadWatcher() {
+	m.novelUploadWatcher.Stop()
+}
+
+// IsNovelUploadWatcherRunning 检查小说上传目录监控是否正在运行
+func (m *Manager) IsNovelUploadWatcherRunning() bool {
+	return m.novelUploadWatcher.IsRunning()
+}
