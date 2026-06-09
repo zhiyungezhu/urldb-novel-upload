@@ -43,10 +43,10 @@ RUN VERSION=${VERSION:-$(cat VERSION)} && \
     GIT_BRANCH=${GIT_BRANCH:-$(git branch --show-current 2>/dev/null || echo "unknown")} && \
     BUILD_TIME=${BUILD_TIME:-$(date '+%Y-%m-%d %H:%M:%S')} && \
     CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
-    -ldflags "-X 'github.com/zhiyungezhu/urldb/utils.Version=${VERSION}' \
-              -X 'github.com/zhiyungezhu/urldb/utils.BuildTime=${BUILD_TIME}' \
-              -X 'github.com/zhiyungezhu/urldb/utils.GitCommit=${GIT_COMMIT}' \
-              -X 'github.com/zhiyungezhu/urldb/utils.GitBranch=${GIT_BRANCH}'" \
+    -ldflags "-X 'github.com/zhiyungezhu/urldb-novel-upload/utils.Version=${VERSION}' \
+              -X 'github.com/zhiyungezhu/urldb-novel-upload/utils.BuildTime=${BUILD_TIME}' \
+              -X 'github.com/zhiyungezhu/urldb-novel-upload/utils.GitCommit=${GIT_COMMIT}' \
+              -X 'github.com/zhiyungezhu/urldb-novel-upload/utils.GitBranch=${GIT_BRANCH}'" \
     -o main .
 
 # 后端运行阶段

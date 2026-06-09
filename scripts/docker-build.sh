@@ -54,15 +54,13 @@ build_docker() {
     # 构建前端镜像（可选）
     if [ "$skip_frontend" != "true" ]; then
         echo -e "${YELLOW}构建前端镜像...${NC}"
-        FRONTEND_CMD="${BUILD_CMD} --build-arg VERSION=${version} --build-arg GIT_COMMIT=${git_commit} --build-arg GIT_BRANCH=${git_branch} --build-arg BUILD_TIME=${build_time} --target frontend -t zhiyungezhu/urldb-frontend:${version} ."
-        echo -e "${BLUE}执行命令: ${FRONTEND_CMD}${NC}"
         ${BUILD_CMD} \
             --build-arg VERSION=${version} \
             --build-arg GIT_COMMIT=${git_commit} \
             --build-arg GIT_BRANCH=${git_branch} \
             --build-arg "BUILD_TIME=${build_time}" \
             --target frontend \
-            -t zhiyungezhu/urldb-frontend:${version} \
+            -t zhiyungezhu/urldb-novel-upload-frontend:${version} \
             .
         
         if [ $? -ne 0 ]; then
@@ -75,15 +73,13 @@ build_docker() {
     
     # 构建后端镜像
     echo -e "${YELLOW}构建后端镜像...${NC}"
-    BACKEND_CMD="${BUILD_CMD} --build-arg VERSION=${version} --build-arg GIT_COMMIT=${git_commit} --build-arg GIT_BRANCH=${git_branch} --build-arg BUILD_TIME=${build_time} --target backend -t zhiyungezhu/urldb-backend:${version} ."
-    echo -e "${BLUE}执行命令: ${BACKEND_CMD}${NC}"
     ${BUILD_CMD} \
         --build-arg VERSION=${version} \
         --build-arg GIT_COMMIT=${git_commit} \
         --build-arg GIT_BRANCH=${git_branch} \
         --build-arg BUILD_TIME="${build_time}" \
         --target backend \
-        -t zhiyungezhu/urldb-backend:${version} \
+        -t zhiyungezhu/urldb-novel-upload-backend:${version} \
         .
     
     if [ $? -ne 0 ]; then
@@ -93,9 +89,9 @@ build_docker() {
     
     echo -e "${GREEN}Docker构建完成!${NC}"
     echo -e "镜像标签:"
-    echo -e "  ${GREEN}zhiyungezhu/urldb-backend:${version}${NC}"
+    echo -e "  ${GREEN}zhiyungezhu/urldb-novel-upload-backend:${version}${NC}"
     if [ "$skip_frontend" != "true" ]; then
-        echo -e "  ${GREEN}zhiyungezhu/urldb-frontend:${version}${NC}"
+        echo -e "  ${GREEN}zhiyungezhu/urldb-novel-upload-frontend:${version}${NC}"
     fi
 }
 
@@ -106,10 +102,10 @@ push_images() {
     echo -e "${YELLOW}推送镜像到Docker Hub...${NC}"
     
     # 推送后端镜像
-    docker push zhiyungezhu/urldb-backend:${version}
+    docker push zhiyungezhu/urldb-novel-upload-backend:${version}
     
     # 推送前端镜像
-    docker push zhiyungezhu/urldb-frontend:${version}
+    docker push zhiyungezhu/urldb-novel-upload-frontend:${version}
     
     echo -e "${GREEN}镜像推送完成!${NC}"
 }
@@ -119,8 +115,8 @@ clean_images() {
     local version=$(get_version $1)
     
     echo -e "${YELLOW}清理Docker镜像...${NC}"
-    docker rmi zhiyungezhu/urldb-backend:${version} 2>/dev/null || true
-    docker rmi zhiyungezhu/urldb-frontend:${version} 2>/dev/null || true
+    docker rmi zhiyungezhu/urldb-novel-upload-backend:${version} 2>/dev/null || true
+    docker rmi zhiyungezhu/urldb-novel-upload-frontend:${version} 2>/dev/null || true
     
     echo -e "${GREEN}镜像清理完成${NC}"
 }
@@ -180,4 +176,4 @@ main() {
 }
 
 # 运行主函数
-main "$@" 
+main "$@"
