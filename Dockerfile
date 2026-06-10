@@ -28,9 +28,14 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # 去除 UTF-8 BOM 及首行乱码字符（GitHub zip 源可能带 BOM）
-RUN for f in go.mod go.sum; do \
-        sed -i '1s/^\xEF\xBB\xBF//' "$f" 2>/dev/null; \
-        awk 'NR==1{sub(/^\?+/,"")}1' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+RUN BOM=$(printf '\xef\xbb\xbf'); \
+    for f in go.mod go.sum; do \
+        if [ -f "$f" ] && [ "$(head -c 3 "$f")" = "$BOM" ]; then \
+            tail -c +4 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+        fi; \
+        while [ -s "$f" ] && [ "$(od -A n -t x1 -N 1 "$f")" = " 3f" ]; do \
+            tail -c +2 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+        done; \
     done
 
 # 国内 Go 代理（通过构建参数传入）
@@ -43,8 +48,17 @@ RUN go mod download
 COPY . .
 
 # 去除所有源码文件的 UTF-8 BOM 和首行乱码
-RUN find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) \
-    -exec sh -c 'sed -i "1s/^\xEF\xBB\xBF//" "$1" 2>/dev/null; awk "NR==1{sub(/^\?+/,\"\")}1" "$1" > "$1.tmp" && mv "$1.tmp" "$1"' _ {} \;
+RUN BOM=$(printf '\xef\xbb\xbf'); \
+    find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) \
+    -exec sh -c '\
+        BOM="$0"; f="$1"; \
+        if [ "$(head -c 3 "$f")" = "$BOM" ]; then \
+            tail -c +4 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+        fi; \
+        while [ -s "$f" ] && [ "$(od -A n -t x1 -N 1 "$f")" = " 3f" ]; do \
+            tail -c +2 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+        done \
+    ' "$BOM" {} \;
 
 # 定义构建参数
 ARG VERSION
