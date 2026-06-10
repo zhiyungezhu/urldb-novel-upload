@@ -24,6 +24,10 @@ CMD ["node", ".output/server/index.mjs"]
 # 后端构建阶段
 FROM golang:1.24.5-alpine AS backend-builder
 
+# 安装 iconv 用于编码转换
+RUN apk add --no-cache gnu-libiconv
+ENV LD_PRELOAD=/usr/lib/preloadable_libiconv.so
+
 WORKDIR /app
 COPY go.mod go.sum ./
 
@@ -47,17 +51,14 @@ RUN go mod download
 # 复制所有源代码
 COPY . .
 
-# 去除所有源码文件的 UTF-8 BOM 和首行乱码（COPY . . 会覆盖 go.mod/go.sum，需要再次清理）
+# 去除 BOM + GBK 转 UTF-8（源码含 GBK 中文注释，需转码）
 RUN BOM=$(printf '\xef\xbb\xbf'); \
     for f in go.mod go.sum; do \
         if [ -f "$f" ] && [ "$(head -c 3 "$f")" = "$BOM" ]; then \
             tail -c +4 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
         fi; \
-        while [ -s "$f" ] && [ "$(od -A n -t x1 -N 1 "$f")" = " 3f" ]; do \
-            tail -c +2 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
-        done; \
     done; \
-    find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) \
+    find . -type f -name "*.go" \
     -exec sh -c '\
         BOM="$0"; f="$1"; \
         if [ "$(head -c 3 "$f")" = "$BOM" ]; then \
@@ -65,7 +66,8 @@ RUN BOM=$(printf '\xef\xbb\xbf'); \
         fi; \
         while [ -s "$f" ] && [ "$(od -A n -t x1 -N 1 "$f")" = " 3f" ]; do \
             tail -c +2 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
-        done \
+        done; \
+        iconv -f GBK -t UTF-8 "$f" > "$f.tmp" 2>/dev/null && mv "$f.tmp" "$f" || true; \
     ' "$BOM" {} \;
 
 # 定义构建参数
