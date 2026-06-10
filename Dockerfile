@@ -1,4 +1,4 @@
-﻿﻿# 前端构建阶段
+# 前端构建阶段
 FROM node:20-slim AS frontend-builder
 
 # 安装pnpm
@@ -26,6 +26,11 @@ FROM golang:1.24.5-alpine AS backend-builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
+
+# 国内 Go 代理（通过构建参数传入）
+ARG GOPROXY=https://goproxy.cn,direct
+ENV GOPROXY=${GOPROXY}
+
 RUN go mod download
 
 # 复制所有源代码

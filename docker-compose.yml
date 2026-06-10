@@ -1,4 +1,4 @@
-﻿﻿version: '3.8'
+version: '3.8'
 
 services:
   postgres:
@@ -26,6 +26,7 @@ services:
       target: backend
       args:
         VERSION: 1.3.8
+        GOPROXY: https://goproxy.cn,direct
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
