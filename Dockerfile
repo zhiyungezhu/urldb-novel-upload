@@ -47,8 +47,16 @@ RUN go mod download
 # 复制所有源代码
 COPY . .
 
-# 去除所有源码文件的 UTF-8 BOM 和首行乱码
+# 去除所有源码文件的 UTF-8 BOM 和首行乱码（COPY . . 会覆盖 go.mod/go.sum，需要再次清理）
 RUN BOM=$(printf '\xef\xbb\xbf'); \
+    for f in go.mod go.sum; do \
+        if [ -f "$f" ] && [ "$(head -c 3 "$f")" = "$BOM" ]; then \
+            tail -c +4 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+        fi; \
+        while [ -s "$f" ] && [ "$(od -A n -t x1 -N 1 "$f")" = " 3f" ]; do \
+            tail -c +2 "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+        done; \
+    done; \
     find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) \
     -exec sh -c '\
         BOM="$0"; f="$1"; \
