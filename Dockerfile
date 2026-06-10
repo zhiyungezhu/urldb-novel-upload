@@ -1,4 +1,4 @@
-﻿# 前端构建阶段
+﻿﻿# 前端构建阶段
 FROM node:20-slim AS frontend-builder
 
 # 安装pnpm

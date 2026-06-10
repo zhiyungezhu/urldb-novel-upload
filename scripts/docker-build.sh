@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+﻿﻿#!/bin/bash
 
 # Docker构建脚本
 # 用法: ./scripts/docker-build.sh [version]
