@@ -27,6 +27,12 @@ FROM golang:1.24.5-alpine AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
 
+# 去除 UTF-8 BOM 及首行乱码字符（GitHub zip 源可能带 BOM）
+RUN for f in go.mod go.sum; do \
+        sed -i '1s/^\xEF\xBB\xBF//' "$f" 2>/dev/null; \
+        awk 'NR==1{sub(/^\?+/,"")}1' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+    done
+
 # 国内 Go 代理（通过构建参数传入）
 ARG GOPROXY=https://goproxy.cn,direct
 ENV GOPROXY=${GOPROXY}
@@ -35,6 +41,10 @@ RUN go mod download
 
 # 复制所有源代码
 COPY . .
+
+# 去除所有源码文件的 UTF-8 BOM 和首行乱码
+RUN find . -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.yml" -o -name "*.json" \) \
+    -exec sh -c 'sed -i "1s/^\xEF\xBB\xBF//" "$1" 2>/dev/null; awk "NR==1{sub(/^\?+/,\"\")}1" "$1" > "$1.tmp" && mv "$1.tmp" "$1"' _ {} \;
 
 # 定义构建参数
 ARG VERSION
