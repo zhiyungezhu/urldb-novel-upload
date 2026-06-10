@@ -1,4 +1,4 @@
-﻿﻿module github.com/zhiyungezhu/urldb-novel-upload
+﻿module github.com/zhiyungezhu/urldb-novel-upload
 
 go 1.24.0
 

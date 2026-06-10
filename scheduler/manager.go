@@ -1,4 +1,4 @@
-???????????package scheduler
+package scheduler
 
 import (
 	"github.com/zhiyungezhu/urldb-novel-upload/db/repo"

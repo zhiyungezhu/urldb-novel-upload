@@ -1,4 +1,4 @@
-??????package pan
+package pan
 
 import (
 	"fmt"
